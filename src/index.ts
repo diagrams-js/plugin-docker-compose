@@ -155,8 +155,8 @@ function getProviderForImage(image: string): {
     return { provider: "onprem", type: "compute", resourceType: "Nomad" };
   }
 
-  // Default to generic container
-  return { provider: "generic", type: "compute", resourceType: "Container" };
+  // Default to Docker container from onprem provider
+  return { provider: "onprem", type: "container", resourceType: "Docker" };
 }
 
 /**
