@@ -51,7 +51,7 @@ services:
       const json = diagram.toJSON();
       const webNode = json.nodes.find((n) => n.id === "web");
       expect(webNode).toBeDefined();
-      expect(webNode?.metadata?.compose).toEqual({
+      expect(webNode?.metadata?.compose).toMatchObject({
         image: "nginx:latest",
         ports: ["80:80", "443:443"],
         environment: { NODE_ENV: "production" },

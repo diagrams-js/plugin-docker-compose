@@ -260,9 +260,14 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
         mimeType: "text/yaml",
 
         export: async (diagram: Diagram, _context: ExportContext): Promise<string> => {
+          // Try to get original compose metadata from the first node
+          const diagramJson = diagram.toJSON();
+          const firstNode = diagramJson.nodes[0];
+          const originalMetadata = firstNode?.metadata?.compose;
+
           const compose: ComposeFile = {
-            version: config?.defaultVersion || "3.8",
-            name: diagram.name.toLowerCase().replace(/\s+/g, "-"),
+            version: originalMetadata?._version || config?.defaultVersion || "3.8",
+            name: originalMetadata?._name || diagram.name.toLowerCase().replace(/\s+/g, "-"),
             services: {},
             networks: {},
             volumes: {},
@@ -409,6 +414,8 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
       type: providerInfo.resourceType,
       metadata: {
         compose: {
+          _version: compose.version,
+          _name: compose.name,
           image: serviceConfig.image,
           build: serviceConfig.build,
           ports: serviceConfig.ports,
