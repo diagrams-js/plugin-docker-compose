@@ -286,16 +286,21 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
             // Determine service type from metadata or defaults
             const metadata = node.metadata?.compose || {};
 
+            // Extract all service properties from metadata, excluding internal fields
+            const { _version, _name, ...serviceConfig } = metadata;
+
             compose.services[serviceName] = {
-              image: metadata.image || "nginx:latest",
-              ports: metadata.ports || [],
-              environment: metadata.environment || {},
-              volumes: metadata.volumes || [],
-              networks: metadata.networks || [],
-              command: metadata.command,
-              working_dir: metadata.working_dir,
-              restart: metadata.restart,
-              labels: metadata.labels,
+              image: serviceConfig.image || "nginx:latest",
+              ports: serviceConfig.ports || [],
+              environment: serviceConfig.environment || {},
+              volumes: serviceConfig.volumes || [],
+              networks: serviceConfig.networks || [],
+              command: serviceConfig.command,
+              working_dir: serviceConfig.working_dir,
+              restart: serviceConfig.restart,
+              labels: serviceConfig.labels,
+              // Include any additional fields from the original config
+              ...serviceConfig,
             };
 
             // Track networks
@@ -416,17 +421,8 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
         compose: {
           _version: compose.version,
           _name: compose.name,
-          image: serviceConfig.image,
-          build: serviceConfig.build,
-          ports: serviceConfig.ports,
-          environment: serviceConfig.environment,
-          volumes: serviceConfig.volumes,
-          depends_on: serviceConfig.depends_on,
-          networks: serviceConfig.networks,
-          command: serviceConfig.command,
-          working_dir: serviceConfig.working_dir,
-          restart: serviceConfig.restart,
-          labels: serviceConfig.labels,
+          // Store the entire service config to preserve all fields
+          ...serviceConfig,
         },
       },
     };
