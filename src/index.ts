@@ -20,15 +20,12 @@ import type {
   ImportContext,
   ExportContext,
   Diagram,
-} from "diagrams-js";
-
-// Import the DiagramJSON type for proper typing
-import type {
   DiagramJSON,
   DiagramNodeJSON,
   DiagramEdgeJSON,
   DiagramClusterJSON,
 } from "diagrams-js";
+import * as yaml from "js-yaml";
 
 /**
  * Docker Compose service configuration
@@ -239,7 +236,7 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
           const sources = Array.isArray(source) ? source : [source];
 
           for (let i = 0; i < sources.length; i++) {
-            const compose = await parseComposeFile(sources[i]);
+            const compose = parseComposeFile(sources[i]);
             const projectName = compose.name || `compose-project-${i}`;
 
             // Convert Docker Compose to diagrams-js JSON format
@@ -383,8 +380,7 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
 /**
  * Parse a Docker Compose YAML file using js-yaml
  */
-async function parseComposeFile(yamlContent: string): Promise<ComposeFile> {
-  const yaml = await import("js-yaml");
+function parseComposeFile(yamlContent: string): ComposeFile {
   const parsed = yaml.load(yamlContent) as ComposeFile;
 
   // Ensure required fields have defaults

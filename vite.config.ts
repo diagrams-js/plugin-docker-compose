@@ -17,6 +17,9 @@ export default defineConfig({
     format: ["esm"],
     minify: true,
     sourcemap: false,
+    deps: {
+      alwaysBundle: ["js-yaml"], // Bundle js-yaml into the output
+    },
   },
   lint: {
     options: {
