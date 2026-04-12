@@ -322,6 +322,7 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
           }
 
           // Reconstruct dependencies from edges
+          // Edge from "web" to "db" means web depends_on db
           if (json.edges) {
             for (const edge of json.edges) {
               const sourceNode = json.nodes.find((n) => n.id === edge.from);
@@ -347,13 +348,14 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
                   !networks?.includes(targetNode.label || "") &&
                   !volumes?.some((v: string) => v.includes(targetNode.label || ""))
                 ) {
-                  // Add dependency
-                  if (!compose.services[targetService].depends_on) {
-                    compose.services[targetService].depends_on = [];
+                  // Add dependency: source depends on target
+                  // Edge from -> to means from depends_on to
+                  if (!compose.services[sourceService].depends_on) {
+                    compose.services[sourceService].depends_on = [];
                   }
-                  const deps = compose.services[targetService].depends_on as string[];
-                  if (!deps.includes(sourceService)) {
-                    deps.push(sourceService);
+                  const deps = compose.services[sourceService].depends_on as string[];
+                  if (!deps.includes(targetService)) {
+                    deps.push(targetService);
                   }
                 }
               }
@@ -369,157 +371,20 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
 }
 
 /**
- * Parse a Docker Compose YAML file
+ * Parse a Docker Compose YAML file using js-yaml
  */
 async function parseComposeFile(yamlContent: string): Promise<ComposeFile> {
-  // Simple YAML parser for Docker Compose
-  // In a real implementation, you might want to use a proper YAML library
-  const lines = yamlContent.split("\n");
-  const compose: ComposeFile = {
-    version: "3.8",
-    services: {},
+  const yaml = await import("js-yaml");
+  const parsed = yaml.load(yamlContent) as ComposeFile;
+
+  // Ensure required fields have defaults
+  return {
+    version: parsed.version || "3.8",
+    name: parsed.name,
+    services: parsed.services || {},
+    networks: parsed.networks,
+    volumes: parsed.volumes,
   };
-
-  let currentSection: "root" | "services" | "networks" | "volumes" = "root";
-  let currentItem: string | null = null;
-  let currentService: ComposeService | null = null;
-  let currentNetwork: ComposeNetwork | null = null;
-  let currentVolume: ComposeVolume | null = null;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const indent = line.length - trimmed.length;
-
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith("#")) continue;
-
-    // Top-level sections
-    if (indent === 0) {
-      if (trimmed.startsWith("version:")) {
-        compose.version = trimmed.split(":")[1]?.trim().replace(/['"]/g, "");
-      } else if (trimmed.startsWith("name:")) {
-        compose.name = trimmed.split(":")[1]?.trim().replace(/['"]/g, "");
-      } else if (trimmed === "services:") {
-        currentSection = "services";
-        currentItem = null;
-      } else if (trimmed === "networks:") {
-        currentSection = "networks";
-        currentItem = null;
-        compose.networks = {};
-      } else if (trimmed === "volumes:") {
-        currentSection = "volumes";
-        currentItem = null;
-        compose.volumes = {};
-      }
-      continue;
-    }
-
-    // Service definitions
-    if (currentSection === "services" && indent === 2) {
-      const match = trimmed.match(/^(\w+):/);
-      if (match) {
-        currentItem = match[1];
-        currentService = {};
-        compose.services[currentItem] = currentService;
-      }
-      continue;
-    }
-
-    // Network definitions
-    if (currentSection === "networks" && indent === 2) {
-      const match = trimmed.match(/^(\w+):/);
-      if (match) {
-        currentItem = match[1];
-        currentNetwork = {};
-        compose.networks![currentItem] = currentNetwork;
-      }
-      continue;
-    }
-
-    // Volume definitions
-    if (currentSection === "volumes" && indent === 2) {
-      const match = trimmed.match(/^(\w+):/);
-      if (match) {
-        currentItem = match[1];
-        currentVolume = {};
-        compose.volumes![currentItem] = currentVolume;
-      }
-      continue;
-    }
-
-    // Service properties
-    if (currentService && indent >= 4) {
-      const propMatch = trimmed.match(/^(\w+):\s*(.*)/);
-      if (propMatch) {
-        const [, prop, value] = propMatch;
-        const cleanValue = value.replace(/['"]/g, "");
-
-        switch (prop) {
-          case "image":
-            currentService.image = cleanValue;
-            break;
-          case "command":
-            currentService.command = cleanValue;
-            break;
-          case "working_dir":
-            currentService.working_dir = cleanValue;
-            break;
-          case "restart":
-            currentService.restart = cleanValue;
-            break;
-          case "ports":
-            currentService.ports = [];
-            break;
-          case "environment":
-            currentService.environment = {};
-            break;
-          case "volumes":
-            currentService.volumes = [];
-            break;
-          case "depends_on":
-            currentService.depends_on = [];
-            break;
-          case "networks":
-            currentService.networks = [];
-            break;
-        }
-      } else if (trimmed.startsWith("- ")) {
-        // Array items
-        if (currentService.ports !== undefined && !currentService.ports.length) {
-          currentService.ports = parseArray(lines, lines.indexOf(line));
-        } else if (currentService.volumes !== undefined && !currentService.volumes.length) {
-          currentService.volumes = parseArray(lines, lines.indexOf(line));
-        } else if (currentService.depends_on !== undefined && !currentService.depends_on.length) {
-          currentService.depends_on = parseArray(lines, lines.indexOf(line));
-        } else if (currentService.networks !== undefined && !currentService.networks.length) {
-          currentService.networks = parseArray(lines, lines.indexOf(line));
-        }
-      }
-    }
-  }
-
-  return compose;
-}
-
-/**
- * Parse an array from YAML lines
- */
-function parseArray(lines: string[], startIndex: number): string[] {
-  const result: string[] = [];
-  const startIndent = lines[startIndex].length - lines[startIndex].trim().length;
-
-  for (let i = startIndex; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    const indent = line.length - trimmed.length;
-
-    if (indent < startIndent) break;
-    if (trimmed.startsWith("- ")) {
-      result.push(trimmed.substring(2).trim());
-    }
-  }
-
-  return result;
 }
 
 /**
@@ -542,6 +407,21 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
       provider: providerInfo.provider,
       service: providerInfo.type,
       type: providerInfo.resourceType,
+      metadata: {
+        compose: {
+          image: serviceConfig.image,
+          build: serviceConfig.build,
+          ports: serviceConfig.ports,
+          environment: serviceConfig.environment,
+          volumes: serviceConfig.volumes,
+          depends_on: serviceConfig.depends_on,
+          networks: serviceConfig.networks,
+          command: serviceConfig.command,
+          working_dir: serviceConfig.working_dir,
+          restart: serviceConfig.restart,
+          labels: serviceConfig.labels,
+        },
+      },
     };
 
     nodes.push(node);
@@ -550,13 +430,20 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
 
   // Create nodes for networks
   if (compose.networks) {
-    for (const networkName of Object.keys(compose.networks)) {
+    for (const [networkName, networkConfig] of Object.entries(compose.networks)) {
       const node: DiagramNodeJSON = {
         id: `network-${networkName}`,
         label: networkName,
         attrs: {
           shape: "ellipse",
           style: "dashed",
+        },
+        metadata: {
+          compose: {
+            type: "network",
+            driver: networkConfig?.driver,
+            external: networkConfig?.external,
+          },
         },
       };
       nodes.push(node);
@@ -566,7 +453,7 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
 
   // Create nodes for volumes
   if (compose.volumes) {
-    for (const volumeName of Object.keys(compose.volumes)) {
+    for (const [volumeName, volumeConfig] of Object.entries(compose.volumes)) {
       const node: DiagramNodeJSON = {
         id: `volume-${volumeName}`,
         label: volumeName,
@@ -574,6 +461,13 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
           shape: "cylinder",
           style: "filled",
           fillcolor: "#E8E8E8",
+        },
+        metadata: {
+          compose: {
+            type: "volume",
+            driver: volumeConfig?.driver,
+            external: volumeConfig?.external,
+          },
         },
       };
       nodes.push(node);
@@ -610,7 +504,11 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
     if (serviceConfig.volumes) {
       for (const volumeSpec of serviceConfig.volumes) {
         const volumeName = parseVolumeName(volumeSpec);
-        if (compose.volumes?.[volumeName]) {
+        // Create edge if volume is defined in compose.volumes (even if value is null/undefined)
+        // or if it's a named volume (no colon in spec)
+        const isNamedVolume = compose.volumes && volumeName in compose.volumes;
+        const isAnonymousVolume = !volumeSpec.includes(":");
+        if (isNamedVolume || isAnonymousVolume) {
           edges.push({
             from: serviceName,
             to: `volume-${volumeName}`,
@@ -785,7 +683,7 @@ function stringifyComposeFile(compose: ComposeFile): string {
     }
   }
 
-  return lines.join("\n");
+  return lines.join("\n").trim();
 }
 
 /**

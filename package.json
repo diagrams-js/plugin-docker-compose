@@ -46,12 +46,17 @@
     "version:minor": "npm version minor --no-git-tag-version",
     "version:major": "npm version major --no-git-tag-version"
   },
+  "dependencies": {
+    "js-yaml": "^4.1.1"
+  },
   "devDependencies": {
     "@tanstack/intent": "^0.0.29",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.0",
     "diagrams-js": "file:../diagrams-js",
     "typescript": "^6.0.2",
-    "vite-plus": "^0.1.14"
+    "vite-plus": "^0.1.14",
+    "vitest": "^3.0.0"
   },
   "peerDependencies": {
     "diagrams-js": "^0.2.4"
