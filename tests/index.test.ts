@@ -85,6 +85,28 @@ services:
       });
     });
 
+    it("should map node image to Nodejs resource", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const composeYaml = `
+version: "3.8"
+name: my-app
+services:
+  app:
+    image: node:18
+`;
+
+      await diagram.import(composeYaml, "docker-compose");
+
+      const json = diagram.toJSON();
+      const appNode = json.nodes.find((n) => n.id === "my-app-app");
+      expect(appNode).toBeDefined();
+      expect(appNode?.type).toBe("Nodejs");
+      expect(appNode?.provider).toBe("programming");
+      expect(appNode?.service).toBe("language");
+    });
+
     it("should create cluster for compose project", async () => {
       const diagram = Diagram("Test");
       await diagram.registerPlugins([dockerComposePlugin]);

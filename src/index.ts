@@ -73,87 +73,102 @@ interface ComposeFile {
   volumes?: Record<string, ComposeVolume>;
 }
 
+interface ResourceInfo {
+  provider: string;
+  type: string;
+  resource: string;
+}
+
+let findResource: (query: string) => ResourceInfo[];
+
 /**
- * Maps Docker image names to provider node types
+ * Cache for resource lookups to avoid repeated searches
+ */
+const resourceCache = new Map<string, ResourceInfo>();
+
+/**
+ * Common Docker image name mappings to resource names
+ * These are Docker images that don't directly match their resource names
+ */
+const DOCKER_IMAGE_ALIASES: Record<string, string> = {
+  node: "Nodejs",
+  golang: "Go",
+  "c-sharp": "Dotnet",
+  "c#": "Dotnet",
+  postgres: "Postgresql",
+  mongo: "Mongodb",
+  httpd: "Apache",
+};
+
+/**
+ * Maps Docker image names to provider node types using find-resource module
  */
 function getProviderForImage(image: string): {
   provider: string;
   type: string;
   resource: string;
 } {
+  // Check cache first
+  if (resourceCache.has(image)) {
+    return resourceCache.get(image)!;
+  }
+
   const lowerImage = image.toLowerCase();
 
-  // Databases
-  if (lowerImage.includes("postgres")) {
-    return { provider: "onprem", type: "database", resource: "Postgresql" };
-  }
-  if (lowerImage.includes("mysql")) {
-    return { provider: "onprem", type: "database", resource: "Mysql" };
-  }
-  if (lowerImage.includes("mariadb")) {
-    return { provider: "onprem", type: "database", resource: "Mariadb" };
-  }
-  if (lowerImage.includes("mongodb") || lowerImage.includes("mongo")) {
-    return { provider: "onprem", type: "database", resource: "Mongodb" };
-  }
-  if (lowerImage.includes("redis")) {
-    return { provider: "onprem", type: "database", resource: "Redis" };
-  }
-  if (lowerImage.includes("cassandra")) {
-    return { provider: "onprem", type: "database", resource: "Cassandra" };
-  }
-  if (lowerImage.includes("couchdb")) {
-    return { provider: "onprem", type: "database", resource: "Couchdb" };
-  }
-  if (lowerImage.includes("influxdb")) {
-    return { provider: "onprem", type: "database", resource: "Influxdb" };
-  }
-  if (lowerImage.includes("neo4j")) {
-    return { provider: "onprem", type: "database", resource: "Neo4j" };
-  }
-  if (lowerImage.includes("oracle")) {
-    return { provider: "onprem", type: "database", resource: "Oracle" };
-  }
-  if (lowerImage.includes("mssql")) {
-    return { provider: "onprem", type: "database", resource: "Mssql" };
+  // Extract service name from image (remove version tags, registry, etc.)
+  // e.g., "docker.io/library/postgres:14" -> "postgres"
+  // e.g., "myregistry.com/team/mysql:8.0" -> "mysql"
+  const imageName =
+    lowerImage
+      .split("/")
+      .pop() // Get last part after slashes
+      ?.split(":")[0] // Remove version tag
+      ?.split("@")[0] || ""; // Remove digest
+
+  // Check for Docker image aliases first
+  // e.g., "node" -> search for "Nodejs" instead
+  const searchTerm = DOCKER_IMAGE_ALIASES[imageName] || imageName;
+
+  // Search for matching resources
+  const matches = findResource(searchTerm);
+
+  // If we found matches, use the best one (exact match is first due to sorting)
+  if (matches.length > 0) {
+    const bestMatch = matches[0];
+    const result = {
+      provider: bestMatch.provider,
+      type: bestMatch.type,
+      resource: bestMatch.resource,
+    };
+    resourceCache.set(image, result);
+    return result;
   }
 
-  // Message Queues
-  if (lowerImage.includes("kafka")) {
-    return { provider: "onprem", type: "queue", resource: "Kafka" };
-  }
-  if (lowerImage.includes("rabbitmq")) {
-    return { provider: "onprem", type: "queue", resource: "Rabbitmq" };
-  }
-
-  // Monitoring
-  if (lowerImage.includes("prometheus")) {
-    return { provider: "onprem", type: "monitoring", resource: "Prometheus" };
-  }
-  if (lowerImage.includes("grafana")) {
-    return { provider: "onprem", type: "monitoring", resource: "Grafana" };
-  }
-
-  // Search
-  if (lowerImage.includes("elasticsearch")) {
-    return { provider: "onprem", type: "search", resource: "Elasticsearch" };
-  }
-
-  // Web Servers
-  if (lowerImage.includes("nginx")) {
-    return { provider: "onprem", type: "network", resource: "Nginx" };
-  }
-  if (lowerImage.includes("apache") || lowerImage.includes("httpd")) {
-    return { provider: "onprem", type: "network", resource: "Apache" };
-  }
-
-  // Container Orchestration
-  if (lowerImage.includes("nomad")) {
-    return { provider: "onprem", type: "compute", resource: "Nomad" };
+  // Fallback: try searching with common suffixes removed
+  // e.g., "postgresql" -> "postgres"
+  const baseName = imageName.replace(/db$/, "").replace(/sql$/, "");
+  if (baseName !== imageName) {
+    const baseMatches = findResource(baseName);
+    if (baseMatches.length > 0) {
+      const bestMatch = baseMatches[0];
+      const result = {
+        provider: bestMatch.provider,
+        type: bestMatch.type,
+        resource: bestMatch.resource,
+      };
+      resourceCache.set(image, result);
+      return result;
+    }
   }
 
   // Default to Docker container from onprem provider
-  return { provider: "onprem", type: "container", resource: "Docker" };
+  const defaultResult = {
+    provider: "onprem",
+    type: "container",
+    resource: "Docker",
+  };
+  resourceCache.set(image, defaultResult);
+  return defaultResult;
 }
 
 /**
@@ -209,6 +224,12 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
       browser: true,
       deno: true,
       bun: true,
+    },
+    initialize: async (_config, context) => {
+      const module = await context.loadResourcesList();
+      if (module?.findResource) {
+        findResource = module.findResource;
+      }
     },
     capabilities: [
       {
