@@ -218,7 +218,7 @@ import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 const plugin = createDockerComposePlugin({
   defaultVersion: "3.9",
   imageMappings: {
-    "custom-db": { provider: "onprem", type: "database", resourceType: "Postgresql" },
+    "custom-db": { provider: "onprem", type: "database", resource: "Postgresql" },
   },
 });
 

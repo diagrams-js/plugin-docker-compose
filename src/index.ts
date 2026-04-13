@@ -79,81 +79,81 @@ interface ComposeFile {
 function getProviderForImage(image: string): {
   provider: string;
   type: string;
-  resourceType: string;
+  resource: string;
 } {
   const lowerImage = image.toLowerCase();
 
   // Databases
   if (lowerImage.includes("postgres")) {
-    return { provider: "onprem", type: "database", resourceType: "Postgresql" };
+    return { provider: "onprem", type: "database", resource: "Postgresql" };
   }
   if (lowerImage.includes("mysql")) {
-    return { provider: "onprem", type: "database", resourceType: "Mysql" };
+    return { provider: "onprem", type: "database", resource: "Mysql" };
   }
   if (lowerImage.includes("mariadb")) {
-    return { provider: "onprem", type: "database", resourceType: "Mariadb" };
+    return { provider: "onprem", type: "database", resource: "Mariadb" };
   }
   if (lowerImage.includes("mongodb") || lowerImage.includes("mongo")) {
-    return { provider: "onprem", type: "database", resourceType: "Mongodb" };
+    return { provider: "onprem", type: "database", resource: "Mongodb" };
   }
   if (lowerImage.includes("redis")) {
-    return { provider: "onprem", type: "database", resourceType: "Redis" };
+    return { provider: "onprem", type: "database", resource: "Redis" };
   }
   if (lowerImage.includes("cassandra")) {
-    return { provider: "onprem", type: "database", resourceType: "Cassandra" };
+    return { provider: "onprem", type: "database", resource: "Cassandra" };
   }
   if (lowerImage.includes("couchdb")) {
-    return { provider: "onprem", type: "database", resourceType: "Couchdb" };
+    return { provider: "onprem", type: "database", resource: "Couchdb" };
   }
   if (lowerImage.includes("influxdb")) {
-    return { provider: "onprem", type: "database", resourceType: "Influxdb" };
+    return { provider: "onprem", type: "database", resource: "Influxdb" };
   }
   if (lowerImage.includes("neo4j")) {
-    return { provider: "onprem", type: "database", resourceType: "Neo4j" };
+    return { provider: "onprem", type: "database", resource: "Neo4j" };
   }
   if (lowerImage.includes("oracle")) {
-    return { provider: "onprem", type: "database", resourceType: "Oracle" };
+    return { provider: "onprem", type: "database", resource: "Oracle" };
   }
   if (lowerImage.includes("mssql")) {
-    return { provider: "onprem", type: "database", resourceType: "Mssql" };
+    return { provider: "onprem", type: "database", resource: "Mssql" };
   }
 
   // Message Queues
   if (lowerImage.includes("kafka")) {
-    return { provider: "onprem", type: "queue", resourceType: "Kafka" };
+    return { provider: "onprem", type: "queue", resource: "Kafka" };
   }
   if (lowerImage.includes("rabbitmq")) {
-    return { provider: "onprem", type: "queue", resourceType: "Rabbitmq" };
+    return { provider: "onprem", type: "queue", resource: "Rabbitmq" };
   }
 
   // Monitoring
   if (lowerImage.includes("prometheus")) {
-    return { provider: "onprem", type: "monitoring", resourceType: "Prometheus" };
+    return { provider: "onprem", type: "monitoring", resource: "Prometheus" };
   }
   if (lowerImage.includes("grafana")) {
-    return { provider: "onprem", type: "monitoring", resourceType: "Grafana" };
+    return { provider: "onprem", type: "monitoring", resource: "Grafana" };
   }
 
   // Search
   if (lowerImage.includes("elasticsearch")) {
-    return { provider: "onprem", type: "search", resourceType: "Elasticsearch" };
+    return { provider: "onprem", type: "search", resource: "Elasticsearch" };
   }
 
   // Web Servers
   if (lowerImage.includes("nginx")) {
-    return { provider: "onprem", type: "network", resourceType: "Nginx" };
+    return { provider: "onprem", type: "network", resource: "Nginx" };
   }
   if (lowerImage.includes("apache") || lowerImage.includes("httpd")) {
-    return { provider: "onprem", type: "network", resourceType: "Apache" };
+    return { provider: "onprem", type: "network", resource: "Apache" };
   }
 
   // Container Orchestration
   if (lowerImage.includes("nomad")) {
-    return { provider: "onprem", type: "compute", resourceType: "Nomad" };
+    return { provider: "onprem", type: "compute", resource: "Nomad" };
   }
 
   // Default to Docker container from onprem provider
-  return { provider: "onprem", type: "container", resourceType: "Docker" };
+  return { provider: "onprem", type: "container", resource: "Docker" };
 }
 
 /**
@@ -163,7 +163,7 @@ export interface DockerComposePluginConfig {
   /** Default Docker Compose version for exports (default: "3.8") */
   defaultVersion?: string;
   /** Custom image to icon mappings */
-  imageMappings?: Record<string, { provider: string; type: string; resourceType: string }>;
+  imageMappings?: Record<string, { provider: string; type: string; resource: string }>;
 }
 
 /**
@@ -195,7 +195,7 @@ export interface DockerComposePluginConfig {
  * await diagram.registerPlugins([[createDockerComposePlugin, {
  *   defaultVersion: "3.9",
  *   imageMappings: {
- *     "custom-db": { provider: "onprem", type: "database", resourceType: "Postgresql" }
+ *     "custom-db": { provider: "onprem", type: "database", resource: "Postgresql" }
  *   }
  * }]]);
  */
@@ -423,7 +423,7 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
       label: serviceName,
       provider: providerInfo.provider,
       service: providerInfo.type,
-      type: providerInfo.resourceType,
+      type: providerInfo.resource,
       metadata: {
         compose: {
           _version: compose.version,
