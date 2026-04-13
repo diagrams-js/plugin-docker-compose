@@ -54,7 +54,7 @@
     "@tanstack/intent": "^0.0.29",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.0",
-    "diagrams-js": "file:../diagrams-js",
+    "diagrams-js": "^0.2.4",
     "typescript": "^6.0.2",
     "vite-plus": "^0.1.14",
     "vitest": "^3.0.0"
