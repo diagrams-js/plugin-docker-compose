@@ -278,16 +278,23 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
 
           // Process nodes to create services
           for (const node of json.nodes) {
-            const serviceName = (node.label || "unnamed").toLowerCase().replace(/\s+/g, "_");
-
-            // Determine service type from metadata or defaults
+            // Skip network and volume nodes - they are not services
+            // Check metadata._type first, then fall back to ID check
             const metadata = node.metadata?.compose || {};
+            if (metadata._type === "network" || metadata._type === "volume") {
+              continue;
+            }
+            if (node.id?.includes("network-") || node.id?.includes("volume-")) {
+              continue;
+            }
+
+            const serviceName = (node.label || "unnamed").toLowerCase().replace(/\s+/g, "_");
 
             // Extract all service properties from metadata, excluding internal fields
             const { _version, _name, ...serviceConfig } = metadata;
 
             compose.services[serviceName] = {
-              image: serviceConfig.image || "nginx:latest",
+              image: serviceConfig.image || "",
               ports: serviceConfig.ports || [],
               environment: serviceConfig.environment || {},
               volumes: serviceConfig.volumes || [],
@@ -403,12 +410,16 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
   const clusterNodes: string[] = [];
 
   // Create nodes for services with provider info for icon resolution
+  // Prefix node IDs with project name to avoid collisions when importing multiple compose files
+  const nodeIdPrefix = projectName ? `${projectName}-` : "";
+
   for (const [serviceName, serviceConfig] of Object.entries(compose.services)) {
     const image = serviceConfig.image || "";
     const providerInfo = getProviderForImage(image);
+    const nodeId = `${nodeIdPrefix}${serviceName}`;
 
     const node: DiagramNodeJSON = {
-      id: serviceName,
+      id: nodeId,
       label: serviceName,
       provider: providerInfo.provider,
       service: providerInfo.type,
@@ -424,14 +435,15 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
     };
 
     nodes.push(node);
-    clusterNodes.push(serviceName);
+    clusterNodes.push(nodeId);
   }
 
-  // Create nodes for networks
+  // Create nodes for networks with project prefix
   if (compose.networks) {
     for (const [networkName, networkConfig] of Object.entries(compose.networks)) {
+      const nodeId = `${nodeIdPrefix}network-${networkName}`;
       const node: DiagramNodeJSON = {
-        id: `network-${networkName}`,
+        id: nodeId,
         label: networkName,
         attrs: {
           shape: "ellipse",
@@ -439,22 +451,23 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
         },
         metadata: {
           compose: {
-            type: "network",
+            _type: "network",
             driver: networkConfig?.driver,
             external: networkConfig?.external,
           },
         },
       };
       nodes.push(node);
-      clusterNodes.push(`network-${networkName}`);
+      clusterNodes.push(nodeId);
     }
   }
 
-  // Create nodes for volumes
+  // Create nodes for volumes with project prefix
   if (compose.volumes) {
     for (const [volumeName, volumeConfig] of Object.entries(compose.volumes)) {
+      const nodeId = `${nodeIdPrefix}volume-${volumeName}`;
       const node: DiagramNodeJSON = {
-        id: `volume-${volumeName}`,
+        id: nodeId,
         label: volumeName,
         attrs: {
           shape: "cylinder",
@@ -463,26 +476,28 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
         },
         metadata: {
           compose: {
-            type: "volume",
+            _type: "volume",
             driver: volumeConfig?.driver,
             external: volumeConfig?.external,
           },
         },
       };
       nodes.push(node);
-      clusterNodes.push(`volume-${volumeName}`);
+      clusterNodes.push(nodeId);
     }
   }
 
-  // Create edges for service dependencies
+  // Create edges for service dependencies with prefixed node IDs
   // "web depends_on db" means web -> db (web depends on db)
   for (const [serviceName, serviceConfig] of Object.entries(compose.services)) {
+    const sourceNodeId = `${nodeIdPrefix}${serviceName}`;
+
     if (serviceConfig.depends_on) {
       const deps = normalizeDependsOn(serviceConfig.depends_on);
       for (const depName of deps) {
         edges.push({
-          from: serviceName,
-          to: depName,
+          from: sourceNodeId,
+          to: `${nodeIdPrefix}${depName}`,
           direction: "forward",
         });
       }
@@ -492,8 +507,8 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
     if (serviceConfig.networks) {
       for (const networkName of serviceConfig.networks) {
         edges.push({
-          from: serviceName,
-          to: `network-${networkName}`,
+          from: sourceNodeId,
+          to: `${nodeIdPrefix}network-${networkName}`,
           direction: "forward",
         });
       }
@@ -509,8 +524,8 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
         const isAnonymousVolume = !volumeSpec.includes(":");
         if (isNamedVolume || isAnonymousVolume) {
           edges.push({
-            from: serviceName,
-            to: `volume-${volumeName}`,
+            from: sourceNodeId,
+            to: `${nodeIdPrefix}volume-${volumeName}`,
             direction: "forward",
           });
         }

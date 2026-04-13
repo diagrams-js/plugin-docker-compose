@@ -24,8 +24,8 @@ services:
 
       const json = diagram.toJSON();
       expect(json.nodes).toHaveLength(2);
-      expect(json.nodes.find((n) => n.id === "web")).toBeDefined();
-      expect(json.nodes.find((n) => n.id === "db")).toBeDefined();
+      expect(json.nodes.find((n) => n.id === "my-app-web")).toBeDefined();
+      expect(json.nodes.find((n) => n.id === "my-app-db")).toBeDefined();
     });
 
     it("should preserve service configuration in metadata", async () => {
@@ -49,7 +49,7 @@ services:
       await diagram.import(composeYaml, "docker-compose");
 
       const json = diagram.toJSON();
-      const webNode = json.nodes.find((n) => n.id === "web");
+      const webNode = json.nodes.find((n) => n.id === "my-app-web");
       expect(webNode).toBeDefined();
       expect(webNode?.metadata?.compose).toMatchObject({
         image: "nginx:latest",
@@ -80,8 +80,8 @@ services:
       const json = diagram.toJSON();
       expect(json.edges).toHaveLength(1);
       expect(json.edges?.[0]).toMatchObject({
-        from: "web",
-        to: "db",
+        from: "my-app-web",
+        to: "my-app-db",
       });
     });
 
@@ -124,12 +124,14 @@ networks:
       await diagram.import(composeYaml, "docker-compose");
 
       const json = diagram.toJSON();
-      const networkNode = json.nodes.find((n) => n.id === "network-frontend");
+      const networkNode = json.nodes.find((n) => n.id === "my-app-network-frontend");
       expect(networkNode).toBeDefined();
-      expect(networkNode?.metadata?.compose?.type).toBe("network");
+      expect(networkNode?.metadata?.compose?._type).toBe("network");
 
       // Should have edge from web to network
-      expect(json.edges?.some((e) => e.from === "web" && e.to === "network-frontend")).toBe(true);
+      expect(
+        json.edges?.some((e) => e.from === "my-app-web" && e.to === "my-app-network-frontend"),
+      ).toBe(true);
     });
 
     it("should handle volumes", async () => {
@@ -151,12 +153,14 @@ volumes:
       await diagram.import(composeYaml, "docker-compose");
 
       const json = diagram.toJSON();
-      const volumeNode = json.nodes.find((n) => n.id === "volume-pgdata");
+      const volumeNode = json.nodes.find((n) => n.id === "my-app-volume-pgdata");
       expect(volumeNode).toBeDefined();
-      expect(volumeNode?.metadata?.compose?.type).toBe("volume");
+      expect(volumeNode?.metadata?.compose?._type).toBe("volume");
 
       // Should have edge from db to volume
-      expect(json.edges?.some((e) => e.from === "db" && e.to === "volume-pgdata")).toBe(true);
+      expect(
+        json.edges?.some((e) => e.from === "my-app-db" && e.to === "my-app-volume-pgdata"),
+      ).toBe(true);
     });
   });
 
@@ -289,16 +293,59 @@ services:
       const json2 = diagram2.toJSON();
 
       // Compare service configurations
-      const web1 = json1.nodes.find((n) => n.id === "web");
-      const web2 = json2.nodes.find((n) => n.id === "web");
+      const web1 = json1.nodes.find((n) => n.id === "my-app-web");
+      const web2 = json2.nodes.find((n) => n.id === "my-app-web");
       expect(web2?.metadata?.compose).toEqual(web1?.metadata?.compose);
 
-      const db1 = json1.nodes.find((n) => n.id === "db");
-      const db2 = json2.nodes.find((n) => n.id === "db");
+      const db1 = json1.nodes.find((n) => n.id === "my-app-db");
+      const db2 = json2.nodes.find((n) => n.id === "my-app-db");
       expect(db2?.metadata?.compose).toEqual(db1?.metadata?.compose);
 
       // Compare edges
       expect(json2.edges).toHaveLength(json1.edges?.length || 0);
+    });
+
+    it("should export all services when multiple compose files are imported", async () => {
+      const diagram = Diagram("Environment Comparison");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const stagingCompose = `
+name: staging-environment
+services:
+  web:
+    image: nginx:alpine
+  api:
+    image: myapp:staging
+`;
+
+      const productionCompose = `
+name: production-environment
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+  api:
+    image: myapp:latest
+    replicas: 3
+`;
+
+      await diagram.import([stagingCompose, productionCompose], "docker-compose");
+
+      const json = diagram.toJSON();
+      expect(json.nodes).toHaveLength(4); // 2 services x 2 environments
+      expect(json.clusters).toHaveLength(2); // 2 clusters
+
+      const exported = await diagram.export("docker-compose");
+
+      // When multiple compose files have services with the same name,
+      // they are merged with the last one winning (production in this case)
+      expect(exported).toContain("web:");
+      expect(exported).toContain("api:");
+      expect(exported).toContain("nginx:latest"); // Production version
+      expect(exported).toContain("myapp:latest"); // Production version
+      expect(exported).toContain('ports:\n      - "80:80"');
     });
   });
 });
