@@ -1,11 +1,12 @@
 {
   "name": "@diagrams-js/plugin-docker-compose",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "Docker Compose import/export plugin for diagrams-js",
   "keywords": [
     "architecture",
     "diagrams",
     "diagrams-as-code",
+    "diagrams-js",
     "docker",
     "docker-compose",
     "plugin"
@@ -24,7 +25,7 @@
     "dist",
     "LICENSE",
     "README.md",
-    ".agents/skills"
+    "skills"
   ],
   "type": "module",
   "exports": {

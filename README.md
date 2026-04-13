@@ -14,12 +14,12 @@ npm install @diagrams-js/plugin-docker-compose
 
 ```typescript
 import { Diagram } from "diagrams-js";
-import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+import { dockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 
 const diagram = Diagram("My Application");
 
 // Register the plugin
-await diagram.registerPlugins([createDockerComposePlugin()]);
+await diagram.registerPlugins([dockerComposePlugin]);
 
 // Import from Docker Compose YAML
 const composeYaml = `
@@ -48,7 +48,7 @@ const svg = await diagram.render();
 
 ```typescript
 import { Diagram, Node } from "diagrams-js";
-import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+import { dockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 
 const diagram = Diagram("My Application");
 
@@ -73,7 +73,7 @@ db.metadata = {
 web.from(db);
 
 // Register plugin and export
-await diagram.registerPlugins([createDockerComposePlugin()]);
+await diagram.registerPlugins([dockerComposePlugin]);
 const composeYaml = await diagram.export("docker-compose");
 
 console.log(composeYaml);
@@ -112,42 +112,16 @@ console.log(composeYaml);
 - Include networks and volumes
 - Generate valid Docker Compose files
 
-## Supported Docker Compose Fields
-
-### Services
-
-- `image`
-- `build`
-- `ports`
-- `environment`
-- `volumes`
-- `depends_on`
-- `networks`
-- `command`
-- `working_dir`
-- `restart`
-- `labels`
-
-### Networks
-
-- `driver`
-- `external`
-
-### Volumes
-
-- `driver`
-- `external`
-
 ## API
 
-### `createDockerComposePlugin()`
+### `dockerComposePlugin`
 
 Creates the Docker Compose plugin instance.
 
 ```typescript
-import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+import { dockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 
-const plugin = createDockerComposePlugin();
+const plugin = dockerComposePlugin;
 ```
 
 The plugin provides:
