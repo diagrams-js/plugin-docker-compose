@@ -114,6 +114,18 @@ function getProviderForImage(image: string): {
     return resourceCache.get(image)!;
   }
 
+  // Handle empty image (e.g., services with only 'build' configuration)
+  // Return Docker container as default
+  if (!image || image.trim() === "") {
+    const defaultResult = {
+      provider: "onprem",
+      type: "container",
+      resource: "Docker",
+    };
+    resourceCache.set(image, defaultResult);
+    return defaultResult;
+  }
+
   const lowerImage = image.toLowerCase();
 
   // Extract service name from image (remove version tags, registry, etc.)
