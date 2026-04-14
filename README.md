@@ -112,16 +112,64 @@ console.log(composeYaml);
 - Include networks and volumes
 - Generate valid Docker Compose files
 
+## Configuration
+
+### Custom Image Mappings
+
+You can customize which icons are used for specific Docker images:
+
+```typescript
+import { Diagram } from "diagrams-js";
+import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+
+const diagram = Diagram("My Application");
+
+// Create plugin with custom image mappings
+const plugin = createDockerComposePlugin({
+  imageMappings: {
+    "my-custom-api": {
+      provider: "onprem",
+      type: "compute",
+      resource: "Server",
+    },
+    "company-db": {
+      provider: "onprem",
+      type: "database",
+      resource: "Postgresql",
+    },
+  },
+});
+
+await diagram.registerPlugins([plugin]);
+```
+
 ## API
 
 ### `dockerComposePlugin`
 
-Creates the Docker Compose plugin instance.
+Pre-created plugin instance (no configuration).
 
 ```typescript
 import { dockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 
-const plugin = dockerComposePlugin;
+await diagram.registerPlugins([dockerComposePlugin]);
+```
+
+### `createDockerComposePlugin(config?)`
+
+Factory function to create a configured plugin instance.
+
+```typescript
+import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+
+const plugin = createDockerComposePlugin({
+  defaultVersion: "3.9",
+  imageMappings: {
+    "custom-db": { provider: "onprem", type: "database", resource: "Postgresql" },
+  },
+});
+
+await diagram.registerPlugins([plugin]);
 ```
 
 The plugin provides:

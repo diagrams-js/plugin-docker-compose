@@ -83,9 +83,21 @@ let findResource: (query: string) => ResourceInfo[];
 let yaml: Yaml | undefined;
 
 /**
+ * Result from getProviderForImage - either a provider mapping or a custom URL
+ */
+type ProviderResult =
+  | { provider: string; type: string; resource: string; url?: undefined }
+  | { url: string; provider?: undefined; type?: undefined; resource?: undefined };
+
+type ImageMappings = Record<
+  string,
+  { provider: string; type: string; resource: string } | { url: string } | string
+>;
+
+/**
  * Cache for resource lookups to avoid repeated searches
  */
-const resourceCache = new Map<string, ResourceInfo>();
+const resourceCache = new Map<string, ProviderResult>();
 
 /**
  * Common Docker image name mappings to resource names
@@ -104,11 +116,7 @@ const DOCKER_IMAGE_ALIASES: Record<string, string> = {
 /**
  * Maps Docker image names to provider node types using find-resource module
  */
-function getProviderForImage(image: string): {
-  provider: string;
-  type: string;
-  resource: string;
-} {
+function getProviderForImage(image: string, imageMappings: ImageMappings = {}): ProviderResult {
   // Check cache first
   if (resourceCache.has(image)) {
     return resourceCache.get(image)!;
@@ -137,6 +145,27 @@ function getProviderForImage(image: string): {
       .pop() // Get last part after slashes
       ?.split(":")[0] // Remove version tag
       ?.split("@")[0] || ""; // Remove digest
+
+  // Check custom image mappings first (user-defined mappings take precedence)
+  const customMapping = imageMappings[imageName];
+  if (customMapping) {
+    // Handle URL string mapping
+    if (typeof customMapping === "string") {
+      const result = { url: customMapping };
+      resourceCache.set(image, result);
+      return result;
+    }
+    // Handle { url: "..." } object mapping
+    if ("url" in customMapping) {
+      const result = { url: customMapping.url };
+      resourceCache.set(image, result);
+      return result;
+    }
+    // Handle { provider, type, resource } mapping
+    const result = customMapping;
+    resourceCache.set(image, result);
+    return result;
+  }
 
   // Check for Docker image aliases first
   // e.g., "node" -> search for "Nodejs" instead
@@ -190,8 +219,14 @@ function getProviderForImage(image: string): {
 export interface DockerComposePluginConfig {
   /** Default Docker Compose version for exports (default: "3.8") */
   defaultVersion?: string;
-  /** Custom image to icon mappings */
-  imageMappings?: Record<string, { provider: string; type: string; resource: string }>;
+  /**
+   * Custom image to icon mappings.
+   * Can be either a provider icon mapping or a custom image URL.
+   */
+  imageMappings?: Record<
+    string,
+    { provider: string; type: string; resource: string } | { url: string } | string
+  >;
 }
 
 /**
@@ -281,7 +316,7 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
 
             // Convert Docker Compose to diagrams-js JSON format
             // This is the recommended approach: convert to JSON, then use the built-in JSON importer
-            const json = composeToJSON(compose, projectName);
+            const json = composeToJSON(compose, projectName, config?.imageMappings);
 
             // Use the built-in JSON importer to merge the JSON into the target diagram
             // This properly resolves provider icons and creates nodes with correct metadata
@@ -448,7 +483,11 @@ function parseComposeFile(yamlContent: string): ComposeFile {
  * Convert Docker Compose file to diagrams-js JSON format
  * This is the recommended approach for plugins: convert to JSON, then use Diagram.fromJSON()
  */
-function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
+function composeToJSON(
+  compose: ComposeFile,
+  projectName: string,
+  imageMappings: ImageMappings = {},
+): DiagramJSON {
   const nodes: DiagramNodeJSON[] = [];
   const edges: DiagramEdgeJSON[] = [];
   const clusterNodes: string[] = [];
@@ -459,15 +498,12 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
 
   for (const [serviceName, serviceConfig] of Object.entries(compose.services)) {
     const image = serviceConfig.image || "";
-    const providerInfo = getProviderForImage(image);
+    const providerInfo = getProviderForImage(image, imageMappings);
     const nodeId = `${nodeIdPrefix}${serviceName}`;
 
     const node: DiagramNodeJSON = {
       id: nodeId,
       label: serviceName,
-      provider: providerInfo.provider,
-      service: providerInfo.type,
-      type: providerInfo.resource,
       metadata: {
         compose: {
           _version: compose.version,
@@ -477,6 +513,17 @@ function composeToJSON(compose: ComposeFile, projectName: string): DiagramJSON {
         },
       },
     };
+
+    // Add provider info or custom icon URL
+    if ("url" in providerInfo) {
+      // Custom icon URL - will be handled by JSON importer as Custom node
+      node.iconUrl = providerInfo.url;
+    } else {
+      // Provider-based icon
+      node.provider = providerInfo.provider;
+      node.service = providerInfo.type;
+      node.type = providerInfo.resource;
+    }
 
     nodes.push(node);
     clusterNodes.push(nodeId);
