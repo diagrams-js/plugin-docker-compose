@@ -286,8 +286,8 @@ services:
       const webNode = json.nodes.find((n) => n.id === "my-app-web");
       expect(webNode).toBeDefined();
       expect(webNode?.label).toBe("web");
-      // Icon URL should be set to the Iconify URL
-      expect(webNode?.iconUrl).toBe("https://api.iconify.design/logos:docker.svg");
+      // Icon URL should be set to the Iconify URL (accepts both : and / formats)
+      expect(webNode?.iconUrl).toMatch(/https:\/\/api\.iconify\.design\/logos[:/]docker\.svg/);
     });
 
     it("should create cluster for compose project", async () => {

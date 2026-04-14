@@ -89,7 +89,11 @@ type ProviderResult =
   | { provider: string; type: string; resource: string; url?: undefined }
   | { url: string; provider?: undefined; type?: undefined; resource?: undefined };
 
-type ImageMappings = Record<
+/**
+ * Image mapping types for Docker Compose plugin
+ * Use this type to define custom icon mappings
+ */
+export type ImageMappings = Record<
   string,
   | { provider: string; type: string; resource: string }
   | { url: string }
@@ -124,11 +128,6 @@ function getProviderForImage(
   imageMappings: ImageMappings = {},
   serviceName?: string,
 ): ProviderResult {
-  // Check cache first
-  if (resourceCache.has(image)) {
-    return resourceCache.get(image)!;
-  }
-
   // Handle empty image (e.g., services with only 'build' configuration)
   // Return Docker container as default
   if (!image || image.trim() === "") {
@@ -137,8 +136,25 @@ function getProviderForImage(
       type: "container",
       resource: "Docker",
     };
-    resourceCache.set(image, defaultResult);
     return defaultResult;
+  }
+
+  // Normalize image for cache key (lowercase, extract base name)
+  const lowerImage = image.toLowerCase();
+  const imageName =
+    lowerImage
+      .split("/")
+      .pop() // Get last part after slashes
+      ?.split(":")[0] // Remove version tag
+      ?.split("@")[0] || ""; // Remove digest
+
+  // Create cache key from service name or image name
+  const cacheKey =
+    serviceName && imageMappings[serviceName] ? `service:${serviceName}` : `image:${imageName}`;
+
+  // Check cache using normalized key
+  if (resourceCache.has(cacheKey)) {
+    return resourceCache.get(cacheKey)!;
   }
 
   // Check custom image mappings by service name first (takes precedence over image name)
@@ -147,65 +163,56 @@ function getProviderForImage(
     // Handle URL string mapping
     if (typeof customMapping === "string") {
       const result = { url: customMapping };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { url: "..." } object mapping
     if ("url" in customMapping) {
       const result = { url: customMapping.url };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { iconify: "prefix:name" } object mapping
+    // Uses Iconify API: https://api.iconify.design/{prefix}:{name}.svg
     if ("iconify" in customMapping) {
       const iconifyUrl = `https://api.iconify.design/${customMapping.iconify}.svg`;
       const result = { url: iconifyUrl };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { provider, type, resource } mapping
     const result = customMapping;
-    resourceCache.set(image, result);
+    resourceCache.set(cacheKey, result);
     return result;
   }
 
-  const lowerImage = image.toLowerCase();
-
-  // Extract service name from image (remove version tags, registry, etc.)
-  // e.g., "docker.io/library/postgres:14" -> "postgres"
-  // e.g., "myregistry.com/team/mysql:8.0" -> "mysql"
-  const imageName =
-    lowerImage
-      .split("/")
-      .pop() // Get last part after slashes
-      ?.split(":")[0] // Remove version tag
-      ?.split("@")[0] || ""; // Remove digest
-
   // Check custom image mappings by image name (fallback if no service name mapping)
+  // Use imageName which was already extracted above
   const customMapping = imageMappings[imageName];
   if (customMapping) {
     // Handle URL string mapping
     if (typeof customMapping === "string") {
       const result = { url: customMapping };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { url: "..." } object mapping
     if ("url" in customMapping) {
       const result = { url: customMapping.url };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { iconify: "prefix:name" } object mapping
+    // Uses Iconify API: https://api.iconify.design/{prefix}:{name}.svg
     if ("iconify" in customMapping) {
       const iconifyUrl = `https://api.iconify.design/${customMapping.iconify}.svg`;
       const result = { url: iconifyUrl };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
     // Handle { provider, type, resource } mapping
     const result = customMapping;
-    resourceCache.set(image, result);
+    resourceCache.set(cacheKey, result);
     return result;
   }
 
@@ -224,7 +231,7 @@ function getProviderForImage(
       type: bestMatch.type,
       resource: bestMatch.resource,
     };
-    resourceCache.set(image, result);
+    resourceCache.set(cacheKey, result);
     return result;
   }
 
@@ -240,7 +247,7 @@ function getProviderForImage(
         type: bestMatch.type,
         resource: bestMatch.resource,
       };
-      resourceCache.set(image, result);
+      resourceCache.set(cacheKey, result);
       return result;
     }
   }
@@ -251,7 +258,7 @@ function getProviderForImage(
     type: "container",
     resource: "Docker",
   };
-  resourceCache.set(image, defaultResult);
+  resourceCache.set(cacheKey, defaultResult);
   return defaultResult;
 }
 
@@ -316,7 +323,37 @@ export interface DockerComposePluginConfig {
  * await diagram.registerPlugins([plugin]);
  * ```
  */
+/**
+ * Validate Iconify icon format
+ * Iconify icons should be in format "prefix:name"
+ */
+function validateIconifyFormat(key: string, value: string): void {
+  // Check if it contains : separator
+  if (!value.includes(":")) {
+    console.warn(
+      `[docker-compose-plugin] Invalid Iconify format for "${key}": "${value}". ` +
+        `Expected format: "prefix:name" (e.g., "logos:docker")`,
+    );
+  }
+}
+
+/**
+ * Validate image mappings configuration
+ */
+function validateImageMappings(imageMappings?: ImageMappings): void {
+  if (!imageMappings) return;
+
+  for (const [key, value] of Object.entries(imageMappings)) {
+    if (typeof value === "object" && "iconify" in value) {
+      validateIconifyFormat(key, value.iconify);
+    }
+  }
+}
+
 export function createDockerComposePlugin(config?: DockerComposePluginConfig): DiagramsPlugin {
+  // Validate configuration on creation
+  validateImageMappings(config?.imageMappings);
+
   return {
     name: "docker-compose",
     version: "1.0.0",
@@ -859,7 +896,7 @@ function stringifyComposeFile(compose: ComposeFile): string {
  *
  * For custom configuration, use the factory function:
  * ```typescript
- * await diagram.registerPlugins([[createDockerComposePlugin, { defaultVersion: "3.9" }]]);
+ * await diagram.registerPlugins([createDockerComposePlugin({ defaultVersion: "3.9" })]);
  * ```
  */
 export const dockerComposePlugin = createDockerComposePlugin();
