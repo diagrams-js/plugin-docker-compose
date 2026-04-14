@@ -262,6 +262,34 @@ services:
       console.log("Icon data values present:", Object.values(iconData).length > 0);
     });
 
+    it("should support Iconify icons in imageMappings", async () => {
+      const diagram = Diagram("Test");
+      const customPlugin = createDockerComposePlugin({
+        imageMappings: {
+          "docker-service": { iconify: "logos:docker" },
+        },
+      });
+      await diagram.registerPlugins([customPlugin]);
+
+      const composeYaml = `
+version: "3.8"
+name: my-app
+services:
+  web:
+    image: docker-service:latest
+`;
+
+      await diagram.import(composeYaml, "docker-compose");
+
+      // Just verify the import succeeds and node is created
+      const json = diagram.toJSON();
+      const webNode = json.nodes.find((n) => n.id === "my-app-web");
+      expect(webNode).toBeDefined();
+      expect(webNode?.label).toBe("web");
+      // Icon URL should be set to the Iconify URL
+      expect(webNode?.iconUrl).toBe("https://api.iconify.design/logos:docker.svg");
+    });
+
     it("should create cluster for compose project", async () => {
       const diagram = Diagram("Test");
       await diagram.registerPlugins([dockerComposePlugin]);

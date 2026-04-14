@@ -218,7 +218,12 @@ import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
 const plugin = createDockerComposePlugin({
   defaultVersion: "3.9",
   imageMappings: {
+    // Map to provider icons
     "custom-db": { provider: "onprem", type: "database", resource: "Postgresql" },
+    // Map to custom URL
+    "my-api": "https://example.com/api-icon.svg",
+    // Map to Iconify icon
+    "docker-service": { iconify: "logos:docker" },
   },
 });
 
@@ -401,6 +406,79 @@ node.metadata = {
 ### Missing Icons
 
 The plugin maps common images to provider icons. For custom images, a generic container icon is used.
+
+## Custom Image Mappings
+
+When the plugin doesn't automatically recognize your Docker image, or you want to use a specific icon, you can define custom mappings.
+
+**Priority Order:** The plugin checks mappings by **service name** first, then falls back to **image name**:
+
+```yaml
+# docker-compose.yml
+services:
+  my-api:
+    image: nginx:latest # Would normally show nginx icon
+```
+
+```typescript
+// Service name mapping takes precedence
+"my-api": { iconify: "logos:aws" }     // Shows AWS icon
+
+// Image name mapping is fallback
+"nginx": { iconify: "logos:nginx" }   // Used if no "my-api" mapping
+```
+
+### Provider Icons
+
+Use built-in provider icons from the diagrams-js library:
+
+```typescript
+const plugin = createDockerComposePlugin({
+  imageMappings: {
+    "my-api": { provider: "onprem", type: "compute", resource: "Server" },
+    "my-db": { provider: "onprem", type: "database", resource: "Postgresql" },
+    "my-cache": { provider: "onprem", type: "database", resource: "Redis" },
+  },
+});
+```
+
+### Custom URL Icons
+
+Use any image URL (must be accessible from the runtime):
+
+```typescript
+const plugin = createDockerComposePlugin({
+  imageMappings: {
+    // As a string
+    "custom-service": "https://example.com/my-icon.png",
+    // As an object
+    "another-service": { url: "https://example.com/icon.svg" },
+  },
+});
+```
+
+### Iconify Icons
+
+Use icons from [Iconify](https://iconify.design/) (100,000+ open source icons):
+
+```typescript
+const plugin = createDockerComposePlugin({
+  imageMappings: {
+    // Technology logos
+    docker: { iconify: "logos:docker" },
+    kubernetes: { iconify: "logos:kubernetes" },
+    aws: { iconify: "logos:aws" },
+    github: { iconify: "logos:github" },
+
+    // Material Design icons
+    server: { iconify: "mdi:server" },
+    database: { iconify: "mdi:database" },
+    cloud: { iconify: "mdi:cloud" },
+  },
+});
+```
+
+Browse available icons at https://icon-sets.iconify.design/
 
 ## Further Reading
 

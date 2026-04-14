@@ -116,7 +116,12 @@ console.log(composeYaml);
 
 ### Custom Image Mappings
 
-You can customize which icons are used for specific Docker images:
+You can customize which icons are used for specific Docker images. The plugin supports multiple mapping formats:
+
+**Mapping Priority:**
+
+1. **Service name** (e.g., `my-custom-api`) - takes precedence
+2. **Image name** (e.g., `nginx`, `postgres`) - fallback
 
 ```typescript
 import { Diagram } from "diagrams-js";
@@ -127,6 +132,7 @@ const diagram = Diagram("My Application");
 // Create plugin with custom image mappings
 const plugin = createDockerComposePlugin({
   imageMappings: {
+    // 1. Provider icon mapping - use built-in provider icons
     "my-custom-api": {
       provider: "onprem",
       type: "compute",
@@ -137,11 +143,68 @@ const plugin = createDockerComposePlugin({
       type: "database",
       resource: "Postgresql",
     },
+
+    // 2. Direct URL string - use a custom image URL
+    "my-frontend": "https://example.com/react-icon.png",
+
+    // 3. URL object - same as string but as object
+    "my-backend": {
+      url: "https://example.com/node-icon.svg",
+    },
+
+    // 4. Iconify icon - use icons from Iconify (https://iconify.design/)
+    // Format: { iconify: "prefix:name" }
+    "docker-service": {
+      iconify: "logos:docker",
+    },
+    "aws-service": {
+      iconify: "logos:aws",
+    },
+    kubernetes: {
+      iconify: "logos:kubernetes",
+    },
   },
 });
 
 await diagram.registerPlugins([plugin]);
 ```
+
+**Mapping by Service Name vs Image Name:**
+
+The plugin first checks for a mapping by the **service name**, then falls back to the **image name**:
+
+```yaml
+# docker-compose.yml
+services:
+  my-api:
+    image: nginx:latest # Would normally show nginx icon
+```
+
+```typescript
+// This mapping by SERVICE NAME takes precedence
+imageMappings: {
+  "my-api": { iconify: "logos:aws" }  // Shows AWS icon instead of nginx
+}
+
+// This mapping by IMAGE NAME is the fallback
+imageMappings: {
+  "nginx": { iconify: "logos:nginx" }  // Used only if no "my-api" mapping
+}
+```
+
+#### Iconify Icons
+
+The plugin supports [Iconify](https://iconify.design/) icons, which provides access to 100,000+ open source icons. Use the `{ iconify: "prefix:name" }` format:
+
+- Browse icons at https://icon-sets.iconify.design/
+- Common prefixes: `logos:` (technology logos), `mdi:` (Material Design), `fluent-emoji:` (emoji)
+- Examples:
+  - `{ iconify: "logos:docker" }` - Docker logo
+  - `{ iconify: "logos:aws" }` - AWS logo
+  - `{ iconify: "mdi:server" }` - Server icon
+  - `{ iconify: "logos:kubernetes" }` - Kubernetes logo
+
+Icons are automatically fetched from the Iconify API and embedded in the diagram.
 
 ## API
 
