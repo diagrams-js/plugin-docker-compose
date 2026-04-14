@@ -24,8 +24,8 @@ import type {
   DiagramNodeJSON,
   DiagramEdgeJSON,
   DiagramClusterJSON,
+  Yaml,
 } from "diagrams-js";
-import * as yaml from "js-yaml";
 
 /**
  * Docker Compose service configuration
@@ -80,6 +80,7 @@ interface ResourceInfo {
 }
 
 let findResource: (query: string) => ResourceInfo[];
+let yaml: Yaml | undefined;
 
 /**
  * Cache for resource lookups to avoid repeated searches
@@ -226,9 +227,15 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
       bun: true,
     },
     initialize: async (_config, context) => {
-      const module = await context.loadResourcesList();
-      if (module?.findResource) {
-        findResource = module.findResource;
+      const [resourcesList, yamlModule] = await Promise.all([
+        context.loadResourcesList(),
+        context.loadYaml(),
+      ]);
+      if (resourcesList?.findResource) {
+        findResource = resourcesList.findResource;
+      }
+      if (yamlModule) {
+        yaml = yamlModule;
       }
     },
     capabilities: [
@@ -406,10 +413,14 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
 }
 
 /**
- * Parse a Docker Compose YAML file using js-yaml
+ * Parse a Docker Compose YAML file using context.loadYaml() (re-exports from js-yaml)
  */
 function parseComposeFile(yamlContent: string): ComposeFile {
-  const parsed = yaml.load(yamlContent) as ComposeFile;
+  const parsed = yaml?.load(yamlContent) as ComposeFile | undefined;
+
+  if (!parsed) {
+    throw new Error("Failed to load Docker Compose file parser");
+  }
 
   // Ensure required fields have defaults
   return {

@@ -20,12 +20,6 @@ export default defineConfig({
     dts: {
       sourcemap: false,
     },
-    deps: {
-      alwaysBundle: ["js-yaml"], // Bundle js-yaml into the output
-    },
-  },
-  optimizeDeps: {
-    include: ["js-yaml"],
   },
   lint: {
     options: {
