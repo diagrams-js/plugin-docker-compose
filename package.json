@@ -1,6 +1,6 @@
 {
   "name": "@diagrams-js/plugin-docker-compose",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Docker Compose import/export plugin for diagrams-js",
   "keywords": [
     "architecture",
@@ -54,7 +54,7 @@
     "@tanstack/intent": "^0.0.29",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.0",
-    "diagrams-js": "^0.2.4",
+    "diagrams-js": "../diagrams-js",
     "typescript": "^6.0.2",
     "vite-plus": "^0.1.14",
     "vitest": "^3.0.0"
