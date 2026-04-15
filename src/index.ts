@@ -87,7 +87,12 @@ let yaml: Yaml | undefined;
  */
 type ProviderResult =
   | { provider: string; type: string; resource: string; url?: undefined }
-  | { url: string; provider?: undefined; type?: undefined; resource?: undefined };
+  | {
+      url: string;
+      provider?: undefined;
+      type?: undefined;
+      resource?: undefined;
+    };
 
 /**
  * Image mapping types for Docker Compose plugin
@@ -351,6 +356,8 @@ function validateImageMappings(imageMappings?: ImageMappings): void {
 }
 
 export function createDockerComposePlugin(config?: DockerComposePluginConfig): DiagramsPlugin {
+  console.log("testing preview in livecodes");
+
   // Validate configuration on creation
   validateImageMappings(config?.imageMappings);
 
