@@ -11,21 +11,19 @@
     "docker-compose",
     "plugin"
   ],
-  "homepage": "https://github.com/diagrams-js/plugin-docker-compose",
+  "homepage": "https://diagrams-js.hatemhosny.dev/",
   "bugs": {
     "url": "https://github.com/diagrams-js/plugin-docker-compose/issues"
   },
   "license": "MIT",
   "author": "diagrams-js",
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/diagrams-js/plugin-docker-compose.git"
+    "url": "https://github.com/diagrams-js/plugin-docker-compose"
   },
   "files": [
     "dist",
     "LICENSE",
-    "README.md",
-    "skills"
+    "README.md"
   ],
   "type": "module",
   "exports": {

@@ -213,8 +213,8 @@ The Docker Compose plugin automatically creates clusters for each compose projec
 
 ## Runtime Support
 
-- Node.js ✅
 - Browser ✅
+- Node.js ✅
 - Deno ✅
 - Bun ✅
 
