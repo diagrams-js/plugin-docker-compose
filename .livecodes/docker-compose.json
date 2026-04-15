@@ -1,0 +1,17 @@
+{
+  "title": "Docker Compose Example",
+  "activeEditor": "script",
+  "markup": {
+    "language": "html",
+    "content": "<div id=\"diagram\"></div>"
+  },
+  "script": {
+    "language": "javascript",
+    "content": "import { Diagram } from 'diagrams-js';\nimport { dockerComposePlugin } from '@diagrams-js/plugin-docker-compose';\n\nconst diagram = Diagram('E-commerce Application');\n\nawait diagram.registerPlugins([dockerComposePlugin]);\n\nconst composeYaml = `\nversion: '3.8'\nname: ecommerce-app\nservices:\n  frontend:\n    image: nginx:alpine\n    ports:\n      - '80:80'\n    depends_on:\n      - api\n\n  api:\n    image: node:18\n    ports:\n      - '3000:3000'\n    depends_on:\n      - db\n      - cache\n\n  db:\n    image: postgres:15\n    environment:\n      POSTGRES_DB: ecommerce\n    volumes:\n      - pgdata:/var/lib/postgresql/data\n\n  cache:\n    image: redis:7-alpine\n\nvolumes:\n  pgdata:\n`;\n\nawait diagram.import(composeYaml, 'docker-compose');\n\nconst svg = await diagram.render();\n\ndocument.getElementById('diagram').innerHTML = svg;\n"
+  },
+  "customSettings": {
+    "imports": {
+      "@diagrams-js/plugin-docker-compose": "{{LC::TO_DATA_URL(./dist/index.js)}}"
+    }
+  }
+}
