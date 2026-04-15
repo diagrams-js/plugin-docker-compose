@@ -169,76 +169,47 @@ const plugin = createDockerComposePlugin({
 await diagram.registerPlugins([plugin]);
 ```
 
-**Mapping by Service Name vs Image Name:**
+### `ImageMappings` Type
 
-The plugin first checks for a mapping by the **service name**, then falls back to the **image name**:
-
-```yaml
-# docker-compose.yml
-services:
-  my-api:
-    image: nginx:latest # Would normally show nginx icon
-```
+Exported TypeScript type for defining image mappings with full type safety:
 
 ```typescript
-// This mapping by SERVICE NAME takes precedence
-imageMappings: {
-  "my-api": { iconify: "logos:aws" }  // Shows AWS icon instead of nginx
-}
+import { createDockerComposePlugin, ImageMappings } from "@diagrams-js/plugin-docker-compose";
 
-// This mapping by IMAGE NAME is the fallback
-imageMappings: {
-  "nginx": { iconify: "logos:nginx" }  // Used only if no "my-api" mapping
-}
+const mappings: ImageMappings = {
+  "my-api": { provider: "onprem", type: "compute", resource: "Server" },
+  "my-app": { iconify: "logos:docker" },
+  "custom-service": "https://example.com/icon.svg",
+};
+
+const plugin = createDockerComposePlugin({ imageMappings: mappings });
 ```
 
-#### Iconify Icons
+## Working with Clusters
 
-The plugin supports [Iconify](https://iconify.design/) icons, which provides access to 100,000+ open source icons. Use the `{ iconify: "prefix:name" }` format:
-
-- Browse icons at https://icon-sets.iconify.design/
-- Common prefixes: `logos:` (technology logos), `mdi:` (Material Design), `fluent-emoji:` (emoji)
-- Examples:
-  - `{ iconify: "logos:docker" }` - Docker logo
-  - `{ iconify: "logos:aws" }` - AWS logo
-  - `{ iconify: "mdi:server" }` - Server icon
-  - `{ iconify: "logos:kubernetes" }` - Kubernetes logo
-
-Icons are automatically fetched from the Iconify API and embedded in the diagram.
-
-## API
-
-### `dockerComposePlugin`
-
-Pre-created plugin instance (no configuration).
+Clusters are created through the diagram instance, not by calling `Cluster()` directly:
 
 ```typescript
-import { dockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
+import { Diagram, Node } from "diagrams-js";
+import { ECS } from "diagrams-js/aws/compute";
 
-await diagram.registerPlugins([dockerComposePlugin]);
+const diagram = Diagram("My Architecture");
+
+// ✅ Correct: Create cluster via diagram.cluster()
+const cluster = diagram.cluster("Services");
+cluster.add(Node("Web Server"));
+cluster.add(ECS("API"));
+
+// Nested clusters
+const outer = diagram.cluster("Production");
+const inner = outer.cluster("Services");
+inner.add(ECS("API"));
+
+// ❌ Incorrect: Don't call Cluster() directly
+// const cluster = Cluster("VPC"); // This will throw an error
 ```
 
-### `createDockerComposePlugin(config?)`
-
-Factory function to create a configured plugin instance.
-
-```typescript
-import { createDockerComposePlugin } from "@diagrams-js/plugin-docker-compose";
-
-const plugin = createDockerComposePlugin({
-  defaultVersion: "3.9",
-  imageMappings: {
-    "custom-db": { provider: "onprem", type: "database", resource: "Postgresql" },
-  },
-});
-
-await diagram.registerPlugins([plugin]);
-```
-
-The plugin provides:
-
-- **Importer**: `name: "docker-compose"`, supports `.yml` and `.yaml` files
-- **Exporter**: `name: "docker-compose"`, exports to `.yml` format
+The Docker Compose plugin automatically creates clusters for each compose project during import.
 
 ## Runtime Support
 
