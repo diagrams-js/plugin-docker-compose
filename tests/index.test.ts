@@ -428,7 +428,7 @@ services:
       await diagram.import(composeYaml, "docker-compose");
       const exported = await diagram.export("docker-compose");
 
-      expect(exported).toContain('version: "3.8"');
+      expect(exported).toContain("version: '3.8'");
       expect(exported).toContain("name: my-app");
       expect(exported).toContain("services:");
       expect(exported).toContain("web:");
@@ -456,8 +456,8 @@ services:
       const exported = await diagram.export("docker-compose");
 
       expect(exported).toContain("ports:");
-      expect(exported).toContain('- "80:80"');
-      expect(exported).toContain('- "443:443"');
+      expect(exported).toContain("- '80:80'");
+      expect(exported).toContain("- '443:443'");
     });
 
     it("should preserve environment variables in export", async () => {
@@ -591,7 +591,7 @@ services:
       expect(exported).toContain("api:");
       expect(exported).toContain("nginx:latest"); // Production version
       expect(exported).toContain("myapp:latest"); // Production version
-      expect(exported).toContain('ports:\n      - "80:80"');
+      expect(exported).toContain("ports:\n      - '80:80'");
     });
   });
 });

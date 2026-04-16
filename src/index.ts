@@ -457,21 +457,26 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
             const serviceName = (node.label || "unnamed").toLowerCase().replace(/\s+/g, "_");
 
             // Extract all service properties from metadata, excluding internal fields
-            const { _version, _name, ...serviceConfig } = metadata;
+            const { _version, _name, _type, ...serviceConfig } = metadata;
 
-            compose.services[serviceName] = {
-              image: serviceConfig.image || "",
-              ports: serviceConfig.ports || [],
-              environment: serviceConfig.environment || {},
-              volumes: serviceConfig.volumes || [],
-              networks: serviceConfig.networks || [],
-              command: serviceConfig.command,
-              working_dir: serviceConfig.working_dir,
-              restart: serviceConfig.restart,
-              labels: serviceConfig.labels,
-              // Include any additional fields from the original config
-              ...serviceConfig,
-            };
+            // Clean up the service config - remove undefined values and empty arrays
+            const cleanedConfig: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(serviceConfig)) {
+              if (value !== undefined && value !== null) {
+                // Skip empty arrays and empty objects
+                if (Array.isArray(value) && value.length === 0) continue;
+                if (
+                  typeof value === "object" &&
+                  !Array.isArray(value) &&
+                  Object.keys(value).length === 0
+                ) {
+                  continue;
+                }
+                cleanedConfig[key] = value;
+              }
+            }
+
+            compose.services[serviceName] = cleanedConfig as ComposeService;
 
             // Track networks
             if (metadata.networks) {
@@ -480,11 +485,21 @@ export function createDockerComposePlugin(config?: DockerComposePluginConfig): D
               }
             }
 
-            // Track volumes
+            // Track only named volumes (not bind mounts)
             if (metadata.volumes) {
               for (const volume of metadata.volumes as string[]) {
                 const volumeName = parseVolumeName(volume);
-                volumes.add(volumeName);
+
+                // Skip bind mounts - these should NOT be in the volumes section
+                const isBindMount =
+                  volumeName.startsWith(".") ||
+                  volumeName.startsWith("/") ||
+                  volumeName.startsWith("\\") ||
+                  /^[a-zA-Z]:[/\\]/.test(volumeName);
+
+                if (!isBindMount) {
+                  volumes.add(volumeName);
+                }
               }
             }
           }
@@ -768,131 +783,17 @@ function normalizeDependsOn(dependsOn: string[] | Record<string, { condition: st
  * Convert compose object to YAML string
  */
 function stringifyComposeFile(compose: ComposeFile): string {
-  const lines: string[] = [];
+  // Use the yaml module to properly serialize all fields
+  const composeForYaml = {
+    ...(compose.version && { version: compose.version }),
+    ...(compose.name && { name: compose.name }),
+    services: compose.services,
+    ...(compose.networks &&
+      Object.keys(compose.networks).length > 0 && { networks: compose.networks }),
+    ...(compose.volumes && Object.keys(compose.volumes).length > 0 && { volumes: compose.volumes }),
+  };
 
-  if (compose.version) {
-    lines.push(`version: "${compose.version}"`);
-    lines.push("");
-  }
-
-  if (compose.name) {
-    lines.push(`name: ${compose.name}`);
-    lines.push("");
-  }
-
-  // Services
-  if (Object.keys(compose.services).length > 0) {
-    lines.push("services:");
-    for (const [name, service] of Object.entries(compose.services)) {
-      lines.push(`  ${name}:`);
-
-      if (service.image) {
-        lines.push(`    image: ${service.image}`);
-      }
-
-      if (service.command) {
-        if (Array.isArray(service.command)) {
-          lines.push(`    command: [${service.command.map((c) => `"${c}"`).join(", ")}]`);
-        } else {
-          lines.push(`    command: ${service.command}`);
-        }
-      }
-
-      if (service.working_dir) {
-        lines.push(`    working_dir: ${service.working_dir}`);
-      }
-
-      if (service.restart) {
-        lines.push(`    restart: ${service.restart}`);
-      }
-
-      if (service.ports && service.ports.length > 0) {
-        lines.push("    ports:");
-        for (const port of service.ports) {
-          lines.push(`      - "${port}"`);
-        }
-      }
-
-      if (service.environment && Object.keys(service.environment).length > 0) {
-        lines.push("    environment:");
-        if (Array.isArray(service.environment)) {
-          for (const env of service.environment) {
-            lines.push(`      - ${env}`);
-          }
-        } else {
-          for (const [key, value] of Object.entries(service.environment)) {
-            lines.push(`      ${key}: ${value}`);
-          }
-        }
-      }
-
-      if (service.volumes && service.volumes.length > 0) {
-        lines.push("    volumes:");
-        for (const volume of service.volumes) {
-          lines.push(`      - ${volume}`);
-        }
-      }
-
-      if (service.networks && service.networks.length > 0) {
-        lines.push("    networks:");
-        for (const network of service.networks) {
-          lines.push(`      - ${network}`);
-        }
-      }
-
-      if (
-        service.depends_on &&
-        Array.isArray(service.depends_on) &&
-        service.depends_on.length > 0
-      ) {
-        lines.push("    depends_on:");
-        for (const dep of service.depends_on) {
-          lines.push(`      - ${dep}`);
-        }
-      }
-
-      if (service.labels && Object.keys(service.labels).length > 0) {
-        lines.push("    labels:");
-        for (const [key, value] of Object.entries(service.labels)) {
-          lines.push(`      ${key}: ${value}`);
-        }
-      }
-
-      lines.push("");
-    }
-  }
-
-  // Networks
-  if (compose.networks && Object.keys(compose.networks).length > 0) {
-    lines.push("networks:");
-    for (const [name, network] of Object.entries(compose.networks)) {
-      lines.push(`  ${name}:`);
-      if (network.driver) {
-        lines.push(`    driver: ${network.driver}`);
-      }
-      if (network.external) {
-        lines.push("    external: true");
-      }
-      lines.push("");
-    }
-  }
-
-  // Volumes
-  if (compose.volumes && Object.keys(compose.volumes).length > 0) {
-    lines.push("volumes:");
-    for (const [name, volume] of Object.entries(compose.volumes)) {
-      lines.push(`  ${name}:`);
-      if (volume.driver) {
-        lines.push(`    driver: ${volume.driver}`);
-      }
-      if (volume.external) {
-        lines.push("    external: true");
-      }
-      lines.push("");
-    }
-  }
-
-  return lines.join("\n").trim();
+  return yaml?.dump(composeForYaml, { noRefs: true, lineWidth: -1 }) || "";
 }
 
 /**
