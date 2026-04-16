@@ -700,8 +700,21 @@ function composeToJSON(
     if (serviceConfig.volumes) {
       for (const volumeSpec of serviceConfig.volumes) {
         const volumeName = parseVolumeName(volumeSpec);
+
+        // Skip bind mounts (host paths) - these are not Docker volumes
+        // Bind mounts look like: ./path, /host/path, or C:\path (Windows)
+        const isBindMount =
+          volumeName.startsWith(".") ||
+          volumeName.startsWith("/") ||
+          volumeName.startsWith("\\") ||
+          /^[a-zA-Z]:[/\\]/.test(volumeName); // Windows absolute paths like C:/ or C:\
+
+        if (isBindMount) {
+          continue;
+        }
+
         // Create edge if volume is defined in compose.volumes (even if value is null/undefined)
-        // or if it's a named volume (no colon in spec)
+        // or if it's an anonymous volume (no colon in spec)
         const isNamedVolume = compose.volumes && volumeName in compose.volumes;
         const isAnonymousVolume = !volumeSpec.includes(":");
         if (isNamedVolume || isAnonymousVolume) {

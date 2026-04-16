@@ -367,6 +367,47 @@ volumes:
         json.edges?.some((e) => e.from === "my-app-db" && e.to === "my-app-volume-pgdata"),
       ).toBe(true);
     });
+
+    it("should handle bind mount volumes without creating volume nodes", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const composeYaml = `
+version: "3.8"
+name: my-app
+services:
+  backend:
+    image: node:latest
+    volumes:
+      - ./my-volume/
+      - /host/path:/container/path
+      - /absolute-volume/
+      - named_vol:/data
+volumes:
+  named_vol:
+`;
+
+      await diagram.import(composeYaml, "docker-compose");
+
+      const json = diagram.toJSON();
+
+      // Should only have 2 nodes: backend service and named_vol volume
+      expect(json.nodes).toHaveLength(2);
+      expect(json.nodes.find((n) => n.id === "my-app-backend")).toBeDefined();
+      expect(json.nodes.find((n) => n.id === "my-app-volume-named_vol")).toBeDefined();
+
+      // Should not create nodes for bind mounts (relative or absolute)
+      expect(json.nodes.find((n) => n.id?.includes("my-volume"))).toBeUndefined();
+      expect(json.nodes.find((n) => n.id?.includes("host"))).toBeUndefined();
+      expect(json.nodes.find((n) => n.id?.includes("absolute-volume"))).toBeUndefined();
+
+      // Should only have 1 edge: backend -> named_vol
+      expect(json.edges).toHaveLength(1);
+      expect(json.edges?.[0]).toMatchObject({
+        from: "my-app-backend",
+        to: "my-app-volume-named_vol",
+      });
+    });
   });
 
   describe("Export", () => {
