@@ -1,3 +1,22 @@
+## [0.1.1] - 2026-04-16
+
+### Features
+
+- No new features
+
+### Bug Fixes
+
+- fix: export all keys (ad54e00)
+- fix: handle bind mounts (db2139f)
+
+### Other Changes
+
+- update deps (d49b179)
+- update diagrams-js (2c72e60)
+- add tests (fce8540)
+- add license (ef7106f)
+- preview in livecodes (9f5d9ee)
+
 ## [0.1.0] - 2026-04-15
 
 ### Features
