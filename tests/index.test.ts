@@ -593,5 +593,255 @@ services:
       expect(exported).toContain("myapp:latest"); // Production version
       expect(exported).toContain("ports:\n      - '80:80'");
     });
+
+    it("should preserve all service fields in complex round-trip", async () => {
+      const diagram = Diagram("Complex App");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const originalYaml = `version: "3.8"
+name: e-commerce-application
+services:
+  backend:
+    build: ./backend/
+    container_name: backend
+    image: node:18-alpine
+    entrypoint: ["/bin/sh", "./entrypoint.sh"]
+    command: ["npm", "run", "start"]
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "9229:9229"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://db:5432/myapp
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend:/app
+      - /app/node_modules/
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  db:
+    image: postgres:15-alpine
+    container_name: database
+    restart: always
+    environment:
+      POSTGRES_DB: myapp
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:`;
+
+      await diagram.import(originalYaml, "docker-compose");
+      const exported = await diagram.export("docker-compose");
+
+      // Import the exported YAML and verify
+      const diagram2 = Diagram("Test2");
+      await diagram2.registerPlugins([dockerComposePlugin]);
+      await diagram2.import(exported as string, "docker-compose");
+
+      const json = diagram2.toJSON();
+
+      // Verify all services are present
+      expect(json.nodes.find((n) => n.id === "e-commerce-application-backend")).toBeDefined();
+      expect(json.nodes.find((n) => n.id === "e-commerce-application-db")).toBeDefined();
+      expect(json.nodes.find((n) => n.id === "e-commerce-application-redis")).toBeDefined();
+
+      // Verify backend service fields preserved
+      const backend = json.nodes.find((n) => n.id === "e-commerce-application-backend");
+      expect(backend?.metadata?.compose?.build).toBe("./backend/");
+      expect(backend?.metadata?.compose?.container_name).toBe("backend");
+      expect(backend?.metadata?.compose?.image).toBe("node:18-alpine");
+      expect(backend?.metadata?.compose?.entrypoint).toEqual(["/bin/sh", "./entrypoint.sh"]);
+      expect(backend?.metadata?.compose?.command).toEqual(["npm", "run", "start"]);
+      expect(backend?.metadata?.compose?.restart).toBe("unless-stopped");
+      expect(backend?.metadata?.compose?.ports).toContain("3000:3000");
+      expect(backend?.metadata?.compose?.ports).toContain("9229:9229");
+      expect(backend?.metadata?.compose?.environment?.NODE_ENV).toBe("production");
+      expect(backend?.metadata?.compose?.env_file).toEqual(["./.env"]);
+      expect(backend?.metadata?.compose?.volumes).toContain("./backend:/app");
+      expect(backend?.metadata?.compose?.depends_on).toContain("db");
+      expect(backend?.metadata?.compose?.depends_on).toContain("redis");
+      expect(backend?.metadata?.compose?.healthcheck).toBeDefined();
+      expect(backend?.metadata?.compose?.deploy).toBeDefined();
+
+      // Verify db service fields preserved
+      const db = json.nodes.find((n) => n.id === "e-commerce-application-db");
+      expect(db?.metadata?.compose?.image).toBe("postgres:15-alpine");
+      expect(db?.metadata?.compose?.container_name).toBe("database");
+      expect(db?.metadata?.compose?.environment?.POSTGRES_DB).toBe("myapp");
+
+      // Verify only named volumes in volumes section (not bind mounts)
+      expect(exported).toContain("volumes:");
+      expect(exported).toContain("pgdata:");
+      expect(exported).toContain("redisdata:");
+      // Should NOT have bind mounts in volumes section
+      expect(exported).not.toMatch(/volumes:\s*\n\s*\.\/backend:/);
+    });
+
+    it("should preserve environment variable substitution syntax", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const originalYaml = `version: "3.8"
+name: my-app
+services:
+  web:
+    image: \${WEB_IMAGE:-nginx}:\${TAG:-latest}
+    ports:
+      - "\${PORT:-80}:80"
+    environment:
+      - NODE_ENV=\${ENV:-development}
+      - API_URL=\${API_URL:-http://localhost}
+    volumes:
+      - ./\${DATA_DIR:-data}:/data`;
+
+      await diagram.import(originalYaml, "docker-compose");
+      const exported = await diagram.export("docker-compose");
+
+      // Import and verify
+      const diagram2 = Diagram("Test2");
+      await diagram2.registerPlugins([dockerComposePlugin]);
+      await diagram2.import(exported as string, "docker-compose");
+
+      const json = diagram2.toJSON();
+      const web = json.nodes.find((n) => n.id === "my-app-web");
+
+      expect(web).toBeDefined();
+      // Check environment variable syntax preserved
+      expect(web?.metadata?.compose?.image).toContain("${");
+      expect(web?.metadata?.compose?.ports?.[0]).toContain("${");
+      // Environment might be array or object format
+      const env = web?.metadata?.compose?.environment;
+      if (Array.isArray(env)) {
+        expect(env.some((e: string) => e.includes("${"))).toBe(true);
+      } else if (env) {
+        expect(JSON.stringify(env)).toContain("${");
+      }
+    });
+
+    it("should handle services with only build configuration (no image)", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const originalYaml = `version: "3.8"
+services:
+  custom-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.prod
+      args:
+        - NODE_ENV=production
+    ports:
+      - "8080:8080"`;
+
+      await diagram.import(originalYaml, "docker-compose");
+      const exported = await diagram.export("docker-compose");
+
+      // Import and verify
+      const diagram2 = Diagram("Test2");
+      await diagram2.registerPlugins([dockerComposePlugin]);
+      await diagram2.import(exported as string, "docker-compose");
+
+      const json = diagram2.toJSON();
+      // The project name is auto-generated since none was specified
+      const app = json.nodes.find((n) => n.id.includes("custom-app"));
+
+      expect(app).toBeDefined();
+      expect(app?.metadata?.compose?.build).toBeDefined();
+    });
+
+    it("should preserve networks configuration", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const originalYaml = `version: "3.8"
+services:
+  frontend:
+    image: nginx:latest
+    networks:
+      - frontend-network
+      - backend-network
+  backend:
+    image: node:latest
+    networks:
+      - backend-network
+
+networks:
+  frontend-network:
+    driver: bridge
+  backend-network:
+    driver: overlay`;
+
+      await diagram.import(originalYaml, "docker-compose");
+      const exported = await diagram.export("docker-compose");
+
+      // Import and verify
+      const diagram2 = Diagram("Test2");
+      await diagram2.registerPlugins([dockerComposePlugin]);
+      await diagram2.import(exported as string, "docker-compose");
+
+      const json = diagram2.toJSON();
+      const frontend = json.nodes.find((n) => n.id.includes("frontend"));
+
+      expect(frontend).toBeDefined();
+      expect(frontend?.metadata?.compose?.networks).toBeDefined();
+      const networks = frontend?.metadata?.compose?.networks;
+      expect(Array.isArray(networks) && networks.includes("frontend-network")).toBe(true);
+      expect(Array.isArray(networks) && networks.includes("backend-network")).toBe(true);
+    });
+
+    it("should not add empty arrays or objects when fields are missing", async () => {
+      const diagram = Diagram("Test");
+      await diagram.registerPlugins([dockerComposePlugin]);
+
+      const originalYaml = `version: "3.8"
+services:
+  simple:
+    image: nginx:latest`;
+
+      await diagram.import(originalYaml, "docker-compose");
+      const exported = await diagram.export("docker-compose");
+
+      // Import and verify no empty fields were added
+      const diagram2 = Diagram("Test2");
+      await diagram2.registerPlugins([dockerComposePlugin]);
+      await diagram2.import(exported as string, "docker-compose");
+
+      const json = diagram2.toJSON();
+      const simple = json.nodes.find((n) => n.id === "compose-project-0-simple");
+
+      // Empty arrays should not be in the metadata
+      expect(simple?.metadata?.compose?.ports).toBeUndefined();
+      expect(simple?.metadata?.compose?.environment).toBeUndefined();
+      expect(simple?.metadata?.compose?.volumes).toBeUndefined();
+    });
   });
 });
