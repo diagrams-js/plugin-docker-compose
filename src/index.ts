@@ -627,8 +627,8 @@ function composeToJSON(
     } else {
       // Provider-based icon
       node.provider = providerInfo.provider;
-      node.service = providerInfo.type;
-      node.type = providerInfo.resource;
+      node.type = providerInfo.type;
+      node.resource = providerInfo.resource;
     }
 
     nodes.push(node);

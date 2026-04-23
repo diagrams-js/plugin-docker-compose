@@ -102,9 +102,9 @@ services:
       const json = diagram.toJSON();
       const appNode = json.nodes.find((n) => n.id === "my-app-app");
       expect(appNode).toBeDefined();
-      expect(appNode?.type).toBe("Nodejs");
+      expect(appNode?.resource).toBe("Nodejs");
       expect(appNode?.provider).toBe("programming");
-      expect(appNode?.service).toBe("language");
+      expect(appNode?.type).toBe("language");
     });
 
     it("should assign Docker icon to services with only build configuration", async () => {
@@ -130,9 +130,9 @@ services:
       const json = diagram.toJSON();
       const appNode = json.nodes.find((n) => n.id === "my-app-app");
       expect(appNode).toBeDefined();
-      expect(appNode?.type).toBe("Docker");
+      expect(appNode?.resource).toBe("Docker");
       expect(appNode?.provider).toBe("onprem");
-      expect(appNode?.service).toBe("container");
+      expect(appNode?.type).toBe("container");
     });
 
     it("should use custom image mappings when configured", async () => {
@@ -161,9 +161,9 @@ services:
       const json = diagram.toJSON();
       const apiNode = json.nodes.find((n) => n.id === "my-app-api");
       expect(apiNode).toBeDefined();
-      expect(apiNode?.type).toBe("Server");
+      expect(apiNode?.resource).toBe("Server");
       expect(apiNode?.provider).toBe("onprem");
-      expect(apiNode?.service).toBe("compute");
+      expect(apiNode?.type).toBe("compute");
     });
 
     it("should support custom image URLs in imageMappings", async () => {
