@@ -1,3 +1,17 @@
+## [0.2.0] - 2026-04-23
+
+### Features
+
+- No new features
+
+### Bug Fixes
+
+- No bug fixes
+
+### Other Changes
+
+- apply json properties rename (6183f5d)
+
 ## [0.1.1] - 2026-04-16
 
 ### Features
